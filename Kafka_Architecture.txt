@@ -4,3 +4,148 @@ Kafka's architecture is based on a cluster of machines and interacts with three 
 
 1. The Kafka Cluster (The Core of the System)
 
+                          ┌───────────────────────────┐
+                          │        Kafka Cluster      │
+                          └───────────────────────────┘
+                                       │
+   ┌────────────────────────────────────────────────────────────────────────┐
+   │                                BROKERS                                 │
+   │  (Les nœuds/serveurs qui composent le cluster — 3 à 5 en général)      │
+   └────────────────────────────────────────────────────────────────────────┘
+      │                 │                    │
+      ▼                 ▼                    ▼
+┌─────────────┐   ┌─────────────┐     ┌─────────────┐
+│   Broker 1  │   │  Broker 2   │     │  Broker 3   │
+│ (Stocke des │   │ (Stocke des │     │ (Stocke des │
+│  partitions)│   │  partitions)│     │  partitions)│
+└─────────────┘   └─────────────┘     └─────────────┘
+      │                 │                    │
+      └─────────────────┴────────────────────┘
+                (Partage des données)
+      
+================================================================================
+
+                     ┌────────────────────────────────────┐
+                     │               TOPICS               │
+                     └────────────────────────────────────┘
+                        (Catégories/logiques de données)
+Exemple :
+- topic_web_clicks
+- topic_transactions
+
+Chaque Topic est découpé en plusieurs PARTITIONS → parallélisme & scalabilité.
+
+================================================================================
+
+     ┌──────────────────────────────────────────────────────────────────────┐
+     │                              PARTITIONS                              │
+     └──────────────────────────────────────────────────────────────────────┘
+
+Topic "transactions"   →   Partition 0   |   Partition 1   |   Partition 2
+                          (sur Broker 1) | (sur Broker 2) | (sur Broker 3)
+
+- Chaque Partition est l’unité élémentaire de stockage.
+- Permet la lecture/écriture en parallèle.
+- Distribuée entre Brokers.
+
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           REPLICATION FACTOR                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Exemple : Replication Factor = 3  
+→ Chaque partition existe en **3 copies** sur **3 Brokers différents**.
+
+Avantages :
+- Résilience en cas de panne.
+- Aucune perte de données si un Broker tombe.
+
+================================================================================
+
+                   ┌────────────────────────────────────────┐
+                   │        LEADER & FOLLOWERS              │
+                   └────────────────────────────────────────┘
+
+Pour chaque Partition :
+- **Leader** = reçoit les écritures et sert les lectures.
+- **Followers** = répliquent passivement les données du Leader.
+
+Exemple :
+Partition 0  
+- Leader : Broker 1  
+- Followers : Broker 2, Broker 3  
+
+Si Broker 1 tombe → un Follower devient le nouveau Leader.
+
+================================================================================
+
+      ┌───────────────────────────────────────────────────────────────┐
+      │               ZOOKEEPER (ancien) / KRAFT (nouveau)            │
+      └───────────────────────────────────────────────────────────────┘
+
+Rôle :
+- Stocker les métadonnées du cluster :
+  - Brokers vivants
+  - Leaders des partitions
+  - Configuration des Topics
+  - État global du cluster
+
+KRaft remplace progressivement ZooKeeper depuis Kafka 2.8+.
+
+================================================================================
+
+                        ┌───────────────────────────┐
+                        │    PRODUCERS & CONSUMERS  │
+                        └───────────────────────────┘
+
+Producers :
+- Envoient des messages vers un Topic (donc vers ses partitions).
+
+Consumers :
+- Lisent les messages depuis les partitions (lecture distribuée).
+
+================================================================================
+
+👥 2. External Actors
+
+Three types of applications interact with the Kafka cluster:
+
+A. Producers ✍️
+Producers are client applications that write data to Kafka topics.
+
+    . How it works: When a Producer sends a message, it specifies the topic and can optionally specify a key. Kafka uses this key to ensure that all messages with the same key arrive on the same partition (ensuring order within that partition).
+
+    . Reliability: Producers can configure the level of confirmation they require from the Broker (e.g., wait for confirmation from the Leader only or from all Followers).
+
+B. Consumers 📖
+Consumers are client applications that read data from Kafka topics.
+
+    . Decoupling: Reading is non-destructive. A message read by a Consumer remains in Kafka until the topic's retention time expires.
+
+    . Consumer Groups: This is a fundamental Kafka concept. Multiple instances of the same application (Consumers) form a Consumer Group.
+
+        * Scalability: Within a group, the partitions of a topic are distributed equally among the members. This allows data to be read and processed in parallel.
+
+        * High Availability: If a Consumer fails, its partitions are automatically reassigned to the other members of the group.
+
+    . Offset: Each Consumer Group keeps track of its Offset (the position of the last message read) for each partition. This allows Consumers to resume reading after a failure without missing any data.
+
+C. Connectors (Kafka Connect) 🔌
+Kafka Connect is a framework that simplifies the integration of Kafka with other systems (databases, file systems, search engines).
+
+    . Source Connectors: Retrieve data from an external system (e.g., a MySQL database) and publish it to a Kafka topic.
+
+    . Sink Connectors: Read data from a Kafka topic and write it to an external system (e.g., an S3 data lake or an Elasticsearch database).
+
+📈 The Lifecycle of a Message (A Record)
+
+1) Production: An application (Producer) sends a message (record) to a Broker designated as the Leader of the partition.
+
+2) Storage: The Leader writes the message to its disk and replicates it to all its Followers to ensure durability.
+
+3) Commit: Once the message has been replicated by a sufficient number of Followers, the Leader confirms receipt to the Producer. The message is now committed and available for reading.
+
+4) Consumption: An application (Consumer) belonging to a Consumer Group queries the Broker Leader of its partition, requesting messages from its last Offset.
+
+5) Progress: Once processing is complete, the Consumer updates its Offset in Kafka, marking the messages as read.
