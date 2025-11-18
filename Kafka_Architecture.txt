@@ -1,0 +1,6 @@
+🏗️ Kafka's Architecture and Key Components
+
+Kafka's architecture is based on a cluster of machines and interacts with three main types of actors.
+
+1. The Kafka Cluster (The Core of the System)
+
