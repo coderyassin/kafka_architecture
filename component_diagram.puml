@@ -1,0 +1,55 @@
+@startuml
+title Kafka Architecture - Component Diagram
+
+package "Kafka Cluster" {
+    component "Broker 1" as B1
+    component "Broker 2" as B2
+    component "Broker 3" as B3
+}
+
+package "Topics" {
+    component "Topic A"
+    component "Topic B"
+}
+
+package "Partitions" {
+    component "Partition A0"
+    component "Partition A1"
+    component "Partition A2"
+}
+
+package "Replication" {
+    component "Leader (for A0)" as L0
+    component "Follower 1 (for A0)" as F01
+    component "Follower 2 (for A0)" as F02
+}
+
+package "Metadata Management" {
+    component "ZooKeeper / KRaft"
+}
+
+package "Clients" {
+    component "Producers"
+    component "Consumers"
+}
+
+Producers --> "Topic A"
+Consumers --> "Topic A"
+
+"Topic A" --> "Partition A0"
+"Topic A" --> "Partition A1"
+"Topic A" --> "Partition A2"
+
+"Partition A0" --> B1
+"Partition A1" --> B2
+"Partition A2" --> B3
+
+L0 --> B1
+F01 --> B2
+F02 --> B3
+
+B1 --> "ZooKeeper / KRaft"
+B2 --> "ZooKeeper / KRaft"
+B3 --> "ZooKeeper / KRaft"
+
+@enduml
